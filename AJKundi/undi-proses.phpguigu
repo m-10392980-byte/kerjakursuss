@@ -1,0 +1,43 @@
+<?php
+session_start();
+
+// Check if user is logged in
+if (empty($_SESSION['jenisPengguna']) || $_SESSION['jenisPengguna'] != 'pengundi') {
+    header('Location: login.php');
+    exit;
+}
+
+// Get POST data
+$calon_id = isset($_POST['calon_id']) ? (int)$_POST['calon_id'] : null;
+$calon_nama = isset($_POST['calon_nama']) ? htmlspecialchars($_POST['calon_nama']) : null;
+
+if (!$calon_id || !$calon_nama) {
+    header('Location: undi-calon.php');
+    exit;
+}
+
+// Create votes directory if it doesn't exist
+if (!is_dir('votes')) {
+    mkdir('votes', 0755, true);
+}
+
+// Create vote record
+$vote_data = array(
+    'timestamp' => date('Y-m-d H:i:s'),
+    'user' => $_SESSION['username'] ?? 'Anonymous',
+    'jenis_pengguna' => $_SESSION['jenisPengguna'],
+    'calon_id' => $calon_id,
+    'calon_nama' => $calon_nama
+);
+
+// Save to file with unique name
+$file = 'votes/vote_' . time() . '_' . uniqid() . '.txt';
+file_put_contents(
+    $file,
+    json_encode($vote_data, JSON_PRETTY_PRINT)
+);
+
+// Redirect to results/success page
+header('Location: hasil-undi.php?success=1');
+exit;
+?>
