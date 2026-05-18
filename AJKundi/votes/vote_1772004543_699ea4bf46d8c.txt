@@ -1,7 +1,0 @@
-{
-    "timestamp": "2026-02-25 08:29:03",
-    "user": "Anonymous",
-    "jenis_pengguna": "pengundi",
-    "calon_id": 4,
-    "calon_nama": "Siti Aminah"
-}
