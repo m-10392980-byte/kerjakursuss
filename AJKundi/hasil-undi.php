@@ -1,4 +1,3 @@
-  url=https://github.com/m-10392980-byte/te
 <?php
 session_start();
 include('header.php');
@@ -15,7 +14,12 @@ $nama_user = $_SESSION['nama'] ?? 'Pengguna';
 $jenis_pengguna = $_SESSION['jenisPengguna'] ?? '';
 
 // Ambil data pengguna
-$user_query = mysqli_query($condb, "SELECT * FROM pengguna WHERE noKP='$noKP'");
+$user_query = mysqli_query($condb, "SELECT * FROM pengguna WHERE noKP='" . mysqli_real_escape_string($condb, $noKP) . "'");
+
+if (!$user_query) {
+    die("Database Error: " . mysqli_error($condb));
+}
+
 $user_data = mysqli_fetch_array($user_query);
 if ($user_data) {
     $nama_user = $user_data['nama'];
@@ -244,21 +248,29 @@ if ($user_data) {
         $jawatan_query = "SELECT * FROM jawatan ORDER BY kodJawatan";
         $jawatan_result = mysqli_query($condb, $jawatan_query);
 
+        if (!$jawatan_result) {
+            die("Database Error: " . mysqli_error($condb));
+        }
+
         while ($jawatan = mysqli_fetch_array($jawatan_result)) {
             $kodJawatan = $jawatan['kodJawatan'];
             $namaJawatan = $jawatan['namaJawatan'];
 
             echo "<div class='jawatan-results'>";
-            echo "<h4>$namaJawatan</h4>";
+            echo "<h4>" . htmlspecialchars($namaJawatan) . "</h4>";
 
-            // Ambil hasil vote untuk jawatan ini
-            $hasil_query = "SELECT calon.namaCalon, calon.gambar, COUNT(undian.noCalon) as jumlah_vote
+            // Ambil hasil vote untuk jawatan ini - FIXED QUERY
+            $hasil_query = "SELECT calon.namaCalon, calon.gambar, COUNT(undi.idCalon) as jumlah_vote
                            FROM calon
-                           LEFT JOIN undian ON calon.noCalon = undian.noCalon
-                           WHERE calon.kodJawatan = '$kodJawatan'
-                           GROUP BY calon.noCalon
+                           LEFT JOIN undi ON calon.idCalon = undi.idCalon
+                           WHERE calon.kodJawatan = " . (int)$kodJawatan . "
+                           GROUP BY calon.idCalon
                            ORDER BY jumlah_vote DESC";
             $hasil_result = mysqli_query($condb, $hasil_query);
+
+            if (!$hasil_result) {
+                die("Database Error: " . mysqli_error($condb));
+            }
 
             if (mysqli_num_rows($hasil_result) > 0) {
                 // Ambil jumlah vote tertinggi untuk referensi
@@ -275,10 +287,10 @@ if ($user_data) {
                 foreach ($temp_data as $hasil) {
                     $percentage = $max_votes > 0 ? ($hasil['jumlah_vote'] / $max_votes) * 100 : 0;
                     echo "<div class='vote-item'>";
-                    echo "<div class='vote-name'>" . $hasil['namaCalon'] . "</div>";
+                    echo "<div class='vote-name'>" . htmlspecialchars($hasil['namaCalon']) . "</div>";
                     echo "<div class='vote-count'>" . $hasil['jumlah_vote'] . " vote</div>";
                     echo "</div>";
-                    echo "<div class='chart-bar' style='width: $percentage%;'></div>";
+                    echo "<div class='chart-bar' style='width: " . $percentage . "%;'></div>";
                 }
             } else {
                 echo "<div class='no-votes'>Tiada data pengundian</div>";
@@ -296,14 +308,18 @@ if ($user_data) {
         echo "<p><strong>No. Kad Pengenalan:</strong> " . htmlspecialchars($noKP) . "</p>";
         echo "</div>";
 
-        // Ambil pilihan pengguna
-        $pilihan_query = "SELECT undian.noCalon, calon.namaCalon, calon.gambar, jawatan.namaJawatan, jawatan.kodJawatan
-                         FROM undian
-                         JOIN calon ON undian.noCalon = calon.noCalon
+        // Ambil pilihan pengguna - FIXED QUERY
+        $pilihan_query = "SELECT undi.idCalon, calon.namaCalon, calon.gambar, jawatan.namaJawatan, jawatan.kodJawatan
+                         FROM undi
+                         JOIN calon ON undi.idCalon = calon.idCalon
                          JOIN jawatan ON calon.kodJawatan = jawatan.kodJawatan
-                         WHERE undian.noKP = '$noKP'
+                         WHERE undi.noKPPengundi = '" . mysqli_real_escape_string($condb, $noKP) . "'
                          ORDER BY jawatan.kodJawatan";
         $pilihan_result = mysqli_query($condb, $pilihan_query);
+
+        if (!$pilihan_result) {
+            die("Database Error: " . mysqli_error($condb));
+        }
 
         if (mysqli_num_rows($pilihan_result) > 0) {
             echo "<div class='hasil-grid'>";
