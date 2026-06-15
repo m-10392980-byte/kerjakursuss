@@ -64,26 +64,33 @@ if ($sudah_undi) {
             <div class="calon-grid">
                 <?php foreach ($candidates_by_position[$position] as $calon): ?>
                 
-                <label class="calon-card" onclick="selectCalon(this, '<?php echo htmlspecialchars($position); ?>', <?php echo $calon['id']; ?>)">
+                <div class="calon-card-wrapper">
                     <input type="radio" 
-                           name="jawatan_<?php echo htmlspecialchars($position); ?>" 
+                           id="radio_<?php echo $calon['id']; ?>"
+                           name="jawatan_<?php echo str_replace(' ', '_', htmlspecialchars($position)); ?>" 
                            value="<?php echo $calon['id']; ?>" 
                            data-nama="<?php echo htmlspecialchars($calon['nama']); ?>"
-                           style="display:none;" 
-                           required>
+                           class="calon-radio"
+                           required
+                           onchange="updateCardSelection(this)">
                     
-                    <div class="calon-image-wrapper">
-                        <img src="gambar/<?php echo htmlspecialchars($calon['gambar']); ?>" 
-                             alt="<?php echo htmlspecialchars($calon['nama']); ?>" 
-                             class="calon-image">
-                    </div>
-                    
-                    <div class="calon-name"><?php echo htmlspecialchars($calon['nama']); ?></div>
-                    
-                    <div class="calon-manifesto">
-                        <?php echo htmlspecialchars(substr($calon['manifesto'], 0, 80)) . '...'; ?>
-                    </div>
-                </label>
+                    <label for="radio_<?php echo $calon['id']; ?>" class="calon-card" onclick="event.preventDefault(); document.getElementById('radio_<?php echo $calon['id']; ?>').checked = true; updateCardSelection(document.getElementById('radio_<?php echo $calon['id']; ?>'));">
+                        
+                        <div class="calon-image-wrapper">
+                            <img src="gambar/<?php echo htmlspecialchars($calon['gambar']); ?>" 
+                                 alt="<?php echo htmlspecialchars($calon['nama']); ?>" 
+                                 class="calon-image">
+                        </div>
+                        
+                        <div class="calon-name"><?php echo htmlspecialchars($calon['nama']); ?></div>
+                        
+                        <div class="calon-manifesto">
+                            <?php echo htmlspecialchars(substr($calon['manifesto'], 0, 80)) . '...'; ?>
+                        </div>
+
+                        <div class="checkmark">✓</div>
+                    </label>
+                </div>
                 
                 <?php endforeach; ?>
             </div>
@@ -160,7 +167,18 @@ if ($sudah_undi) {
     gap: 20px;
 }
 
+.calon-card-wrapper {
+    position: relative;
+}
+
+.calon-radio {
+    display: none;
+}
+
 .calon-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     background: white;
     border: 2px solid #e2e8f0;
     border-radius: 12px;
@@ -168,9 +186,7 @@ if ($sudah_undi) {
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    position: relative;
 }
 
 .calon-card:hover {
@@ -179,10 +195,34 @@ if ($sudah_undi) {
     box-shadow: 0 10px 25px rgba(124, 58, 237, 0.2);
 }
 
-.calon-card.selected {
+.calon-radio:checked + .calon-card {
     background: #7c3aed;
     color: white;
     border-color: #7c3aed;
+}
+
+.calon-radio:checked + .calon-card .checkmark {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.checkmark {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    background: #10b981;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+    opacity: 0;
+    transform: scale(0);
+    transition: all 0.3s ease;
 }
 
 .calon-image-wrapper {
@@ -211,7 +251,7 @@ if ($sudah_undi) {
     line-height: 1.4;
 }
 
-.calon-card.selected .calon-manifesto {
+.calon-radio:checked + .calon-card .calon-manifesto {
     color: #e2e8f0;
 }
 
@@ -312,20 +352,23 @@ if ($sudah_undi) {
 </style>
 
 <script>
-function selectCalon(element, jawatan, noCalon) {
-    // Find parent grid
-    const grid = element.parentElement;
+function updateCardSelection(radioElement) {
+    // Get all radios in the same group
+    const groupName = radioElement.name;
+    const allRadios = document.querySelectorAll(`input[name="${groupName}"]`);
     
-    // Remove selected class from siblings
-    const cards = grid.querySelectorAll('.calon-card');
-    cards.forEach(card => card.classList.remove('selected'));
+    // Remove 'checked' styling from all cards in this group
+    allRadios.forEach(radio => {
+        const card = radio.nextElementSibling;
+        if (card) {
+            card.classList.remove('checked');
+        }
+    });
     
-    // Add selected to clicked card
-    element.classList.add('selected');
-    
-    // Set radio button
-    const radio = element.querySelector('input[type="radio"]');
-    radio.checked = true;
+    // Add 'checked' styling to selected card
+    if (radioElement.checked && radioElement.nextElementSibling) {
+        radioElement.nextElementSibling.classList.add('checked');
+    }
 }
 
 function validateForm(e) {
@@ -333,18 +376,33 @@ function validateForm(e) {
     const inputs = form.querySelectorAll('input[type="radio"][required]');
     
     let allSelected = true;
+    const groups = {};
+    
+    // Check which groups exist and if they're all selected
     inputs.forEach(input => {
-        if (!input.checked) {
-            allSelected = false;
+        const groupName = input.name;
+        if (!groups[groupName]) {
+            groups[groupName] = false;
+        }
+        if (input.checked) {
+            groups[groupName] = true;
         }
     });
+    
+    // Check if all groups have at least one selection
+    for (let group in groups) {
+        if (!groups[group]) {
+            allSelected = false;
+            break;
+        }
+    }
 
     if (!allSelected) {
         e.preventDefault();
         document.getElementById('validationMessage').classList.add('show');
         setTimeout(() => {
             document.getElementById('validationMessage').classList.remove('show');
-        }, 3000);
+        }, 4000);
         return false;
     }
 
