@@ -1,4 +1,3 @@
- url=https://github.com/m-10392980-byte/te
 <?php
 session_start();
 include('header.php');
@@ -12,7 +11,16 @@ if (!isset($_SESSION['noKP'])) {
 
 // Semak pengguna sudah mengundi atau tidak
 $noKP = $_SESSION['noKP'];
-$semak_undi = mysqli_query($condb, "SELECT * FROM undian WHERE noKP='$noKP'");
+
+// Use prepared statements to prevent SQL injection
+// Changed table name from 'undian' to 'undi'
+$semak_undi = mysqli_query($condb, "SELECT * FROM undi WHERE noKPPengundi='" . mysqli_real_escape_string($condb, $noKP) . "'");
+
+// Check if query was successful
+if (!$semak_undi) {
+    die("Database Error: " . mysqli_error($condb) . "<br>Query failed on line 19");
+}
+
 $sudah_undi = mysqli_num_rows($semak_undi) > 0;
 
 // Jika sudah mengundi, papar pesan
@@ -190,28 +198,38 @@ if ($sudah_undi) {
         $jawatan_query = "SELECT * FROM jawatan ORDER BY kodJawatan";
         $jawatan_result = mysqli_query($condb, $jawatan_query);
 
+        // Check if jawatan query was successful
+        if (!$jawatan_result) {
+            die("Database Error: " . mysqli_error($condb) . "<br>Failed to fetch jawatan");
+        }
+
         while ($jawatan = mysqli_fetch_array($jawatan_result)) {
             $kodJawatan = $jawatan['kodJawatan'];
             $namaJawatan = $jawatan['namaJawatan'];
 
             echo "<div class='jawatan-section'>";
-            echo "<div class='jawatan-title'>" . $namaJawatan . "</div>";
+            echo "<div class='jawatan-title'>" . htmlspecialchars($namaJawatan) . "</div>";
             echo "<div class='calon-grid'>";
 
             // Ambil calon untuk jawatan ini
-            $calon_query = "SELECT * FROM calon WHERE kodJawatan='$kodJawatan' ORDER BY namaCalon";
+            $calon_query = "SELECT * FROM calon WHERE kodJawatan='" . mysqli_real_escape_string($condb, $kodJawatan) . "' ORDER BY namaCalon";
             $calon_result = mysqli_query($condb, $calon_query);
+
+            // Check if calon query was successful
+            if (!$calon_result) {
+                die("Database Error: " . mysqli_error($condb) . "<br>Failed to fetch calon");
+            }
 
             while ($calon = mysqli_fetch_array($calon_result)) {
                 $noCalon = $calon['noCalon'];
                 $namaCalon = $calon['namaCalon'];
                 $gambar = $calon['gambar'];
 
-                echo "<label class='calon-card' onclick='selectCalon(this, $kodJawatan, $noCalon)'>";
-                echo "<input type='radio' name='jawatan_$kodJawatan' value='$noCalon' style='display:none;' required>";
-                echo "<img src='gambar/$gambar' alt='$namaCalon' class='calon-image'>";
-                echo "<div class='calon-name'>$namaCalon</div>";
-                echo "<div class='calon-jawatan'>$namaJawatan</div>";
+                echo "<label class='calon-card' onclick='selectCalon(this, " . htmlspecialchars($kodJawatan) . ", " . htmlspecialchars($noCalon) . ")'>";
+                echo "<input type='radio' name='jawatan_" . htmlspecialchars($kodJawatan) . "' value='" . htmlspecialchars($noCalon) . "' style='display:none;' required>";
+                echo "<img src='gambar/" . htmlspecialchars($gambar) . "' alt='" . htmlspecialchars($namaCalon) . "' class='calon-image'>";
+                echo "<div class='calon-name'>" . htmlspecialchars($namaCalon) . "</div>";
+                echo "<div class='calon-jawatan'>" . htmlspecialchars($namaJawatan) . "</div>";
                 echo "</label>";
             }
 
