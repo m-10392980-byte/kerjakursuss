@@ -3,27 +3,38 @@ session_start();
 include('header.php');
 include('connection.php');
 
-// Semak login
-if (!isset($_SESSION['noKP'])) {
-    header("location:login.php");
+// Check if user is logged in
+if (empty($_SESSION['jenisPengguna']) || $_SESSION['jenisPengguna'] != 'pengundi') {
+    header('Location: login.php');
     exit;
 }
 
-// Semak pengguna sudah mengundi atau tidak
-$noKP = $_SESSION['noKP'];
+// Load manifesto data
+$json = file_get_contents('manifesto-data.json');
+$manifestos = json_decode($json, true);
 
-// Use prepared statements to prevent SQL injection
-// Changed table name from 'undian' to 'undi'
+// Group candidates by position (jawatan)
+$candidates_by_position = [];
+$positions_order = ['Pengerusi', 'Timbalan Pengerusi', 'Setiausaha', 'Bendahari'];
+
+foreach ($manifestos as $calon) {
+    $position = $calon['jawatan'];
+    if (!isset($candidates_by_position[$position])) {
+        $candidates_by_position[$position] = [];
+    }
+    $candidates_by_position[$position][] = $calon;
+}
+
+// Check if user already voted
+$noKP = $_SESSION['noKP'];
 $semak_undi = mysqli_query($condb, "SELECT * FROM undi WHERE noKPPengundi='" . mysqli_real_escape_string($condb, $noKP) . "'");
 
-// Check if query was successful
 if (!$semak_undi) {
-    die("Database Error: " . mysqli_error($condb) . "<br>Query failed on line 19");
+    die("Database Error: " . mysqli_error($condb));
 }
 
 $sudah_undi = mysqli_num_rows($semak_undi) > 0;
 
-// Jika sudah mengundi, papar pesan
 if ($sudah_undi) {
     echo "<div style='text-align:center; margin: 50px auto; max-width: 600px;'>";
     echo "<h2 style='color: #ef4444;'>⚠️ Anda Sudah Mengundi</h2>";
@@ -35,229 +46,281 @@ if ($sudah_undi) {
 }
 ?>
 
-<head>
-    <link rel="stylesheet" href="css/style.css">
-    <style>
-        .voting-container {
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 20px;
-        }
-
-        .voting-header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .voting-header h1 {
-            color: #7c3aed;
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        .voting-header p {
-            color: #666;
-            font-size: 16px;
-        }
-
-        .jawatan-section {
-            margin-bottom: 40px;
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.05) 0%, rgba(6, 182, 212, 0.05) 100%);
-            border: 2px solid rgba(124, 58, 237, 0.2);
-            border-radius: 16px;
-            padding: 30px;
-        }
-
-        .jawatan-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #7c3aed;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #7c3aed;
-        }
-
-        .calon-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .calon-card {
-            background: white;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .calon-card:hover {
-            transform: translateY(-5px);
-            border-color: #7c3aed;
-            box-shadow: 0 10px 25px rgba(124, 58, 237, 0.2);
-        }
-
-        .calon-card.selected {
-            background: #7c3aed;
-            color: white;
-            border-color: #7c3aed;
-        }
-
-        .calon-image {
-            width: 120px;
-            height: 120px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            object-fit: cover;
-        }
-
-        .calon-name {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .calon-jawatan {
-            font-size: 12px;
-            color: #999;
-        }
-
-        .calon-card.selected .calon-jawatan {
-            color: #e2e8f0;
-        }
-
-        .button-container {
-            text-align: center;
-            margin-top: 40px;
-        }
-
-        .btn-submit {
-            background: linear-gradient(135deg, #7c3aed, #06b6d4);
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-submit:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(124, 58, 237, 0.3);
-        }
-
-        .btn-submit:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .validation-message {
-            text-align: center;
-            margin-top: 20px;
-            padding: 15px;
-            background: #fef3c7;
-            border: 1px solid #fcd34d;
-            border-radius: 8px;
-            color: #92400e;
-            display: none;
-        }
-
-        .validation-message.show {
-            display: block;
-        }
-
-        @media (max-width: 768px) {
-            .calon-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            }
-
-            .calon-image {
-                width: 100px;
-                height: 100px;
-            }
-
-            .voting-header h1 {
-                font-size: 24px;
-            }
-        }
-    </style>
-</head>
-
-<div class="voting-container">
+<section class="voting-container">
     <div class="voting-header">
-        <h1>🗳️ Borang Pengundian</h1>
-        <p>Sila pilih satu calon untuk setiap jawatan</p>
+        <h1 class="voting-title">🗳️ Borang Pengundian</h1>
+        <p class="voting-subtitle">Sila pilih satu calon untuk setiap jawatan</p>
     </div>
 
     <form id="votingForm" action="undi-voting-proses.php" method="POST">
-        <?php
-        // Ambil semua jawatan
-        $jawatan_query = "SELECT * FROM jawatan ORDER BY kodJawatan";
-        $jawatan_result = mysqli_query($condb, $jawatan_query);
+        
+        <?php foreach ($positions_order as $position): ?>
+            <?php if (isset($candidates_by_position[$position])): ?>
+        
+        <!-- POSITION SECTION -->
+        <div class="jawatan-section">
+            <div class="jawatan-title">📌 <?php echo htmlspecialchars($position); ?></div>
+            
+            <div class="calon-grid">
+                <?php foreach ($candidates_by_position[$position] as $calon): ?>
+                
+                <label class="calon-card" onclick="selectCalon(this, '<?php echo htmlspecialchars($position); ?>', <?php echo $calon['id']; ?>)">
+                    <input type="radio" 
+                           name="jawatan_<?php echo htmlspecialchars($position); ?>" 
+                           value="<?php echo $calon['id']; ?>" 
+                           data-nama="<?php echo htmlspecialchars($calon['nama']); ?>"
+                           style="display:none;" 
+                           required>
+                    
+                    <div class="calon-image-wrapper">
+                        <img src="gambar/<?php echo htmlspecialchars($calon['gambar']); ?>" 
+                             alt="<?php echo htmlspecialchars($calon['nama']); ?>" 
+                             class="calon-image">
+                    </div>
+                    
+                    <div class="calon-name"><?php echo htmlspecialchars($calon['nama']); ?></div>
+                    
+                    <div class="calon-manifesto">
+                        <?php echo htmlspecialchars(substr($calon['manifesto'], 0, 80)) . '...'; ?>
+                    </div>
+                </label>
+                
+                <?php endforeach; ?>
+            </div>
+        </div>
 
-        // Check if jawatan query was successful
-        if (!$jawatan_result) {
-            die("Database Error: " . mysqli_error($condb) . "<br>Failed to fetch jawatan");
-        }
+        <?php endif; ?>
+        <?php endforeach; ?>
 
-        while ($jawatan = mysqli_fetch_array($jawatan_result)) {
-            $kodJawatan = $jawatan['kodJawatan'];
-            $namaJawatan = $jawatan['namaJawatan'];
-
-            echo "<div class='jawatan-section'>";
-            echo "<div class='jawatan-title'>" . htmlspecialchars($namaJawatan) . "</div>";
-            echo "<div class='calon-grid'>";
-
-            // Ambil calon untuk jawatan ini
-            $calon_query = "SELECT * FROM calon WHERE kodJawatan='" . mysqli_real_escape_string($condb, $kodJawatan) . "' ORDER BY namaCalon";
-            $calon_result = mysqli_query($condb, $calon_query);
-
-            // Check if calon query was successful
-            if (!$calon_result) {
-                die("Database Error: " . mysqli_error($condb) . "<br>Failed to fetch calon");
-            }
-
-            while ($calon = mysqli_fetch_array($calon_result)) {
-                $noCalon = $calon['noCalon'];
-                $namaCalon = $calon['namaCalon'];
-                $gambar = $calon['gambar'];
-
-                echo "<label class='calon-card' onclick='selectCalon(this, " . htmlspecialchars($kodJawatan) . ", " . htmlspecialchars($noCalon) . ")'>";
-                echo "<input type='radio' name='jawatan_" . htmlspecialchars($kodJawatan) . "' value='" . htmlspecialchars($noCalon) . "' style='display:none;' required>";
-                echo "<img src='gambar/" . htmlspecialchars($gambar) . "' alt='" . htmlspecialchars($namaCalon) . "' class='calon-image'>";
-                echo "<div class='calon-name'>" . htmlspecialchars($namaCalon) . "</div>";
-                echo "<div class='calon-jawatan'>" . htmlspecialchars($namaJawatan) . "</div>";
-                echo "</label>";
-            }
-
-            echo "</div>";
-            echo "</div>";
-        }
-        ?>
-
+        <!-- VALIDATION MESSAGE -->
         <div class="validation-message" id="validationMessage">
             ⚠️ Sila pilih satu calon untuk setiap jawatan sebelum menghantar
         </div>
 
+        <!-- BUTTON SUBMIT -->
         <div class="button-container">
             <button type="submit" class="btn-submit" onclick="validateForm(event)">
                 ✓ Hantar Pengundian Saya
             </button>
         </div>
     </form>
-</div>
+</section>
+
+<style>
+/* ============ VOTING SECTION ============ */
+.voting-container {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.voting-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.voting-title {
+    font-size: 40px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #7c3aed, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+}
+
+.voting-subtitle {
+    font-size: 18px;
+    color: #cbd5e1;
+}
+
+/* JAWATAN SECTION */
+.jawatan-section {
+    margin-bottom: 50px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.05) 0%, rgba(6, 182, 212, 0.05) 100%);
+    border: 2px solid rgba(124, 58, 237, 0.2);
+    border-radius: 16px;
+    padding: 30px;
+}
+
+.jawatan-title {
+    font-size: 22px;
+    font-weight: bold;
+    color: #7c3aed;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 3px solid #7c3aed;
+}
+
+/* CANDIDATES GRID */
+.calon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.calon-card {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.calon-card:hover {
+    transform: translateY(-5px);
+    border-color: #7c3aed;
+    box-shadow: 0 10px 25px rgba(124, 58, 237, 0.2);
+}
+
+.calon-card.selected {
+    background: #7c3aed;
+    color: white;
+    border-color: #7c3aed;
+}
+
+.calon-image-wrapper {
+    width: 100%;
+    height: 150px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(6, 182, 212, 0.1));
+}
+
+.calon-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.calon-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: inherit;
+}
+
+.calon-manifesto {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.calon-card.selected .calon-manifesto {
+    color: #e2e8f0;
+}
+
+/* VALIDATION MESSAGE */
+.validation-message {
+    text-align: center;
+    margin-top: 30px;
+    padding: 15px;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    color: #92400e;
+    display: none;
+}
+
+.validation-message.show {
+    display: block;
+}
+
+/* BUTTON CONTAINER */
+.button-container {
+    text-align: center;
+    margin-top: 40px;
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, #7c3aed, #06b6d4);
+    color: white;
+    border: none;
+    padding: 16px 50px;
+    font-size: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(124, 58, 237, 0.3);
+}
+
+.btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+    .voting-title {
+        font-size: 28px;
+    }
+
+    .jawatan-title {
+        font-size: 18px;
+    }
+
+    .calon-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+
+    .calon-card {
+        padding: 12px;
+    }
+
+    .calon-image-wrapper {
+        height: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .voting-title {
+        font-size: 24px;
+    }
+
+    .jawatan-section {
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+
+    .calon-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .calon-card {
+        padding: 12px;
+    }
+
+    .calon-name {
+        font-size: 14px;
+    }
+
+    .calon-manifesto {
+        font-size: 11px;
+    }
+}
+</style>
 
 <script>
 function selectCalon(element, jawatan, noCalon) {
-    // Hapus selected dari card-card lain dalam section yang sama
-    const section = element.parentElement;
-    const cards = section.querySelectorAll('.calon-card');
+    // Find parent grid
+    const grid = element.parentElement;
+    
+    // Remove selected class from siblings
+    const cards = grid.querySelectorAll('.calon-card');
     cards.forEach(card => card.classList.remove('selected'));
     
-    // Tambah selected ke card yang dipilih
+    // Add selected to clicked card
     element.classList.add('selected');
     
     // Set radio button
